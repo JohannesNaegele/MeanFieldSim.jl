@@ -49,13 +49,20 @@ function update_value(game, V, E, v, ε) # v is a vector of neuronal networks
     end
 end
 
+function update_η(game, η, h, ε)
+    for i in eachindex(η)
+        η[i] = exp(-game.γ * V + game.ρ*(game.λ * sqrt(h) * sum(ε[:, i, 1]) - λ^2 * T/2))
+    end
+    η[i] ./= sum(η)
+end
+
 function update_sdf(ξ, α, η)
     ξ .*= (1 - α)
     η .+= α * η
 end
 
 function approximate(game::MeanFieldGame; n=100, k=0.1, N=100, p=10, iterations=100)
-    ε = Array{Float64}(undef, 2, n, N)
+    ε = Array{Float64}(undef, n, N, 2)
     E = Matrix{Float64}(undef, n, N)
     ξ = ones(N)
     V = Vector{Float64}
@@ -70,7 +77,7 @@ function approximate(game::MeanFieldGame; n=100, k=0.1, N=100, p=10, iterations=
         update_value()
         update_η()
         update_sdf(ξ, step_size, η)
-    
+    end
 end
 
 end # module MeanFieldGame
