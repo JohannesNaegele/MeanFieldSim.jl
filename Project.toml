@@ -1,0 +1,13 @@
+name = "MeanFieldSim"
+uuid = "e71fc124-3008-4aba-81b3-3e13c60dc489"
+authors = ["Johannes Nägele und Maurice Schneider"]
+version = "1.0.0-DEV"
+
+[compat]
+julia = "1"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
