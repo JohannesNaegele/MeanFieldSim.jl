@@ -1,11 +1,14 @@
 module MeanFieldSim
 
-struct MeanFieldGame
-    c::Float64
-    γ::Float64
-    ρ::Float64
-    T::Float64
-    λ::Float64
+struct MeanFieldGame{T}
+    c::T # emission efficiacy
+    γ::T # risk aversion parameter
+    ρ::T # proportion of green investors
+    T::T # time horizon
+    λ::T # environmental concern
+    μ::T # drift of value
+    σ::T # volatility of common risk
+    V₀::T # average initial firm value
 end
 
 """
@@ -13,11 +16,15 @@ This implements sampling from a n-dimensional brownian motion.
 """
 B(n, t) = ...
 
-"""
-samples ?
-"""
-function α(t)
-    return exp(γ*B(2, t) - γ^2*t/2)
+# """
+# samples ?
+# """
+# function α(t)
+#     return exp(γ*B(2, t) - γ^2*t/2)
+# end
+
+function α(t, γ, h, ε)
+    return exp(γ * sqrt(h) * sum(ε) - γ^2*t/2)
 end
 
 # maybe doing this iteratively and using only vector/scalar might be sufficient
@@ -29,12 +36,27 @@ function loss(v, ε::Matrix{T, 2}, y::Matrix{T, 1}) where {T <: Number}
     return x
 end
 
+function update_value(game, V, E, v, ε) # v is a vector of neuronal networks
+    h = game.T/n
+    V .= game.V₀ * E[1, :]
+    for i in eachindex(V)
+        x = 0.0
+        for k in axes(E, 2)
+            wₖ = (k == 1) || (k == size(E)[2]) ? 1.0/2.0 : 1
+            x += wₖ * game.c^2 * 1/α(t, k*h, h, ε[:, i, 2]) * E[k, i] * v[k](E[1:k, i])
+        end
+        V[i] += h * x
+    end
+end
+
 function update_sdf(ξ, α, η)
     ξ .*= (1 - α)
     η .+= α * η
 end
 
-function approximate(game::MeanFieldGame; N=100; p=10, iterations=100)
+function approximate(game::MeanFieldGame; n=100, k=0.1, N=100, p=10, iterations=100)
+    ε = Array{Float64}(undef, 2, n, N)
+    E = Matrix{Float64}(undef, n, N)
     ξ = ones(N)
     V = Vector{Float64}
     η = Vector{Float64}
@@ -51,4 +73,4 @@ function approximate(game::MeanFieldGame; N=100; p=10, iterations=100)
     
 end
 
-end
+end # module MeanFieldGame
