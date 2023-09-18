@@ -76,13 +76,21 @@ function update_sdf(ξ, α, η)
 end
 
 function approximate(game::MeanFieldGame; n=100, k=0.1, N=100, p=10, iterations=100)
-    ε = Array{Float64}(undef, n, N, 2)
+    # FIXME: Summen k=0???
+    ε = randn(n, N, 2)
     E = Matrix{Float64}(undef, n, N)
+
+    h = game.T / n
+
+    for i in axes(E, 1)
+        for k in axes(E, 2)
+            E[k, i] = exp(game.σ * sum(ε[1:k, i, 1]) + (game.μ - game.σ^2/2)* h * k)
+        end
+    end
+
     ξ = ones(N)
     V = Vector{Float64}
     η = Vector{Float64}
-
-    h = game.T / n
 
     for q in 1:iterations
         step_size = 2/(p + q)
