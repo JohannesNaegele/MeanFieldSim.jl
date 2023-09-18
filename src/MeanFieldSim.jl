@@ -1,5 +1,7 @@
 module MeanFieldSim
 
+using Flux
+
 Base.@kwdef struct MeanFieldGame{S}
     C::S # emission efficiacy
     C₂::S # emission efficiacy ???
@@ -12,31 +14,6 @@ Base.@kwdef struct MeanFieldGame{S}
     σ::S # volatility of common risk
     V₀::S # average initial firm value
 end
-
-game = MeanFieldGame(
-    γ_star=0.5,
-    σ=0.1,
-    γ=0.3,
-    μ=0.05,
-    V₀=1.0,
-    C=0.7,
-    C₂=1.0,
-    λ=0.0,
-    ρ=0.0,
-    T=5.0
-)
-
-"""
-This implements sampling from a n-dimensional brownian motion.
-"""
-B(n, t) = ...
-
-# """
-# samples ?
-# """
-# function α(t)
-#     return exp(γ*B(2, t) - γ^2*t/2)
-# end
 
 function α(t, γ, h, ε)
     return exp(γ * sqrt(h) * sum(ε) - γ^2*t/2)
@@ -75,7 +52,7 @@ function update_sdf(ξ, α, η)
     ξ .+= α * η
 end
 
-function approximate(game::MeanFieldGame; n=100, k=0.1, N=100, p=10, iterations=100)
+function approximate(game::MeanFieldGame; n=20, N=50000, p=2, iterations=100)
     # FIXME: Summen k=0???
     ε = randn(n, N, 2)
     E = Matrix{Float64}(undef, n, N)
@@ -91,6 +68,7 @@ function approximate(game::MeanFieldGame; n=100, k=0.1, N=100, p=10, iterations=
     ξ = ones(N)
     V = Vector{Float64}
     η = Vector{Float64}
+    v = []
 
     for q in 1:iterations
         step_size = 2/(p + q)
