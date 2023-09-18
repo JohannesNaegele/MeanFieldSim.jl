@@ -19,15 +19,6 @@ function α(t, γ, h, ε)
     return exp(γ * sqrt(h) * sum(ε) - γ^2*t/2)
 end
 
-# maybe doing this iteratively and using only vector/scalar might be sufficient
-function loss(v, ε::Matrix{T, 2}, y::Matrix{T, 1}) where {T <: Number}
-    x = 0.0
-    for i in axes(ε, 2) # loop over N columns
-        x += (v(ε[:, i]) - y[i])^2
-    end
-    return x
-end
-
 function update_value(game, V, E, v, ε, h) # v is a vector of neuronal networks
     V .= game.V₀ * E[1, :]
     for i in eachindex(V)
@@ -52,7 +43,16 @@ function update_sdf(ξ, α, η)
     ξ .+= α * η
 end
 
-function approximate(game::MeanFieldGame; n=20, N=50000, p=2, iterations=100)
+# maybe doing this iteratively and using only vector/scalar might be sufficient
+# function loss(v, ε::Matrix{T, 2}, y::Matrix{T, 1}) where {T <: Number}
+#     x = 0.0
+#     for i in axes(ε, 2) # loop over N columns
+#         x += (v(ε[:, i]) - y[i])^2
+#     end
+#     return x
+# end
+
+function approximate(game::MeanFieldGame; n=20, N=50000, p=2, iterations=100, epochs=3)
     # FIXME: Summen k=0???
     ε = randn(n, N, 2)
     E = Matrix{Float64}(undef, n, N)
@@ -68,19 +68,38 @@ function approximate(game::MeanFieldGame; n=20, N=50000, p=2, iterations=100)
     ξ = ones(N)
     V = Vector{Float64}
     η = Vector{Float64}
-    v = []
+    # https://stats.stackexchange.com/a/136542/297734
+    n_hidden(n_data, in, α=3.0) = Int(round(n_data/(α * (1 + in))/32)*32)
+
+    optimizer = Adam()
+    v = [
+            Chain(
+                Dense(k => n_hidden(N, 2*n), leakyrelu),   # activation function inside layer
+                Dense(n_hidden(N, 2*n) => 1),
+                Dropout(0.5),
+                leakyrelu
+            )
+            for k in 1:n
+        ]
 
     for q in 1:iterations
         step_size = 2/(p + q)
 
         # mehrere epochen, mache backpropagation auf batch aus N samples
-        v = ...
+        for k in eachindex(v)
+            data = [ε[k, :, :], E[k, :] .* ξ[i]] # very inperformant
+            for _ in 1:epochs
+                model = Flux.setup(v[i], optimizer)
+                Flux.train!((m,x,y) -> (m(x) - y)^2, model, data, optim)
+            end
+        end
         # train schritte geben uns vₖ
 
         update_value(game, V, E, v, ε, h)
         update_η(game, η, h, ε)
         update_sdf(ξ, step_size, η)
     end
+    return ξ
 end
 
 end # module MeanFieldGame
