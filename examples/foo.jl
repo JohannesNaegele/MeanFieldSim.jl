@@ -1,4 +1,10 @@
+cd("./MeanFieldSim")
+using Revise
+import Pkg; Pkg.activate("./")
 using MeanFieldSim
+# using Plots
+using StatsPlots
+using Flux
 
 game = MeanFieldGame(
     γ_star=0.5,
@@ -13,4 +19,19 @@ game = MeanFieldGame(
     T=5.0
 )
 
-approximate(game; n=20, N=50000, p=2, iterations=100)
+ξ = approximate(game; n=20, N=50000, p=2, iterations=10)
+density(ξ)
+
+c = Chain(
+    Dense(10 => 5, leakyrelu),   # activation function inside layer
+    Dense(5 => 1),
+    Dropout(0.5),
+    leakyrelu,
+    only
+)
+# data = [(c(hcat(rand(10), rand(10))), hcat([1], [1]))]
+data = [([x*i for i in 1:10], x^2) for x in 1:10]
+
+Flux.train!((m,x,y) -> (m(x) - y)^2, c, data, opt)
+
+opt = Flux.setup(Adam(), c)
