@@ -5,6 +5,7 @@ export approximate
 
 using Statistics
 using Flux
+import Flux.Data: DataLoader
 
 Base.@kwdef struct MeanFieldGame{S}
     C::S # emission efficiacy
@@ -30,17 +31,17 @@ function update_value(game, V, E, v, ε, h) # v is a vector of neuronal networks
         for k in axes(E, 1)
             wₖ = (k == 1) || (k == size(E)[1]) ? 1.0/2.0 : 1.0
             # println(v[k](ε[1:k, i, :]))
-            x += wₖ * game.C₂^2 * 1/α(k*h, game.γ, h, ε[1:k, i, 2]) * E[k, i] * v[k](ε[1:k, i, :]) # TODO: check dimension with NN
+            x += wₖ * game.C₂^2 * 1/α(k*h, game.γ, h, ε[1:k, i, 2]) * E[k, i] * v[k](vec(ε[1:k, i, :])) # TODO: check dimension with NN
         end
         V[i] += h * x
     end
 end
 
-function update_η(game, η, h, ε)
+function update_η(game, V, η, h, ε)
     for i in eachindex(η)
-        η[i] = exp(-game.γ_star * V[i] + game.ρ*(game.λ * sqrt(h) * sum(ε[:, i, 2]) - λ^2 * game.T/2))
+        η[i] = exp(-game.γ_star * V[i] + game.ρ*(game.λ * sqrt(h) * sum(ε[:, i, 2]) - game.λ^2 * game.T/2))
     end
-    η[i] ./= sum(η)
+    η ./= sum(η)
 end
 
 function update_sdf(ξ, α, η)
@@ -82,29 +83,39 @@ function approximate(game::MeanFieldGame; n=20, N=50000, p=2, iterations=10, epo
                 Dense(2k => n_hidden(N, 2*n, 8.0), leakyrelu),   # activation function inside layer
                 Dense(n_hidden(N, 2*n, 8.0) => 1),
                 Dropout(0.5),
-                leakyrelu
+                leakyrelu,
+                only # important, gives scalar a instead of [a]
             )
             for k in 1:n
         ]
+    batch_size = 32
+    loss_fn = (m, x, y) -> mean((m(x) .- y).^2)
 
     for q in 1:iterations
         step_size = 2/(p + q)
         # mehrere epochen, mache backpropagation auf batch aus N samples
         for k in eachindex(v)
-            data = [(vec(ε[1:k, i, :]), E[k, i] * ξ[i]) for i in eachindex(ξ)] # very inperformant
+            data = [(Float32.(vec(ε[1:k, i, :])), Float32(E[k, i] * ξ[i])) for i in eachindex(ξ)] # very inperformant
+            data_loader = DataLoader(data, batchsize=batch_size, shuffle=true)
             println("q: $q, k: $k")
             for _ in 1:epochs
                 opt = Flux.setup(optimizer, v[k])
-                # Flux.Losses.mse
-                # loss(ŷ, y, agg=x->mean(w .* x))
-                # TODO: batch size
-                Flux.train!((m,x,y) -> (mean(m(x) .- y).^2), v[k], data, opt)
+                # for (x_batch, y_batch) in data_loader
+                #     # Flux.Losses.mse
+                #     # loss(ŷ, y, agg=x->mean(w .* x))
+                #     # TODO: batch size
+                #     # (m,x,y) -> mean(m(x) .- y).^2
+                #     Flux.train!((m,x,y) -> (m(x) - y)^2, v[k], [(x_batch, y_batch)], opt)
+                # end
+                Flux.train!((m,x,y) -> (m(x) - y)^2, v[k], data, opt)
             end
         end
         # train schritte geben uns vₖ
-
+        println("update value:")
         update_value(game, V, E, [x -> v[i](x)[1] for i in eachindex(v)], ε, h)
-        update_η(game, η, h, ε)
+        println("update η:")
+        update_η(game, V, η, h, ε)
+        println("update sdf:")
         update_sdf(ξ, step_size, η)
     end
     return ξ

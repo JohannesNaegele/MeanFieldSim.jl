@@ -19,7 +19,8 @@ game = MeanFieldGame(
     T=5.0
 )
 
-ξ = approximate(game; n=20, N=50000, p=2, iterations=10)
+# ξ = approximate(game; n=20, N=50000, p=2, iterations=10)
+ξ = approximate(game; n=2, N=50000, p=2, iterations=1)
 density(ξ)
 
 c = Chain(
