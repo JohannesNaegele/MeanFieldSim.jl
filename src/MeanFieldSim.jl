@@ -31,7 +31,7 @@ function update_value(game, V, E, v, ε, h) # v is a vector of neuronal networks
         for k in axes(E, 1)
             wₖ = (k == 1) || (k == size(E)[1]) ? 1.0/2.0 : 1.0
             # println(v[k](ε[1:k, i, :]))
-            x += wₖ * game.C₂^2 * 1/α(k*h, game.γ, h, ε[1:k, i, 2]) * E[k, i] * v[k](vec(ε[1:k, i, :])) # TODO: check dimension with NN
+            x += wₖ * game.C₂^2 * 1/α(k*h, game.γ, h, ε[1:k, i, 2]) * E[k, i] * v[k](Float32.(vec(ε[1:k, i, :]))) # TODO: check dimension with NN
         end
         V[i] += h * x
     end
@@ -93,23 +93,23 @@ function approximate(game::MeanFieldGame; n=20, N=50000, p=2, iterations=10, epo
 
     for q in 1:iterations
         step_size = 2/(p + q)
-        # mehrere epochen, mache backpropagation auf batch aus N samples
-        for k in eachindex(v)
-            data = [(Float32.(vec(ε[1:k, i, :])), Float32(E[k, i] * ξ[i])) for i in eachindex(ξ)] # very inperformant
-            data_loader = DataLoader(data, batchsize=batch_size, shuffle=true)
-            println("q: $q, k: $k")
-            for _ in 1:epochs
-                opt = Flux.setup(optimizer, v[k])
-                # for (x_batch, y_batch) in data_loader
-                #     # Flux.Losses.mse
-                #     # loss(ŷ, y, agg=x->mean(w .* x))
-                #     # TODO: batch size
-                #     # (m,x,y) -> mean(m(x) .- y).^2
-                #     Flux.train!((m,x,y) -> (m(x) - y)^2, v[k], [(x_batch, y_batch)], opt)
-                # end
-                Flux.train!((m,x,y) -> (m(x) - y)^2, v[k], data, opt)
-            end
-        end
+    # mehrere epochen, mache backpropagation auf batch aus N samples
+    for k in eachindex(v)
+    data = [(Float32.(vec(ε[1:k, i, :])), Float32(E[k, i] * ξ[i])) for i in eachindex(ξ)] # very inperformant
+    data_loader = DataLoader(data, batchsize=batch_size, shuffle=true)
+    println("q: $q, k: $k")
+    for _ in 1:epochs
+    opt = Flux.setup(optimizer, v[k])
+    # for (x_batch, y_batch) in data_loader
+    #     # Flux.Losses.mse
+    #     # loss(ŷ, y, agg=x->mean(w .* x))
+    #     # TODO: batch size
+    #     # (m,x,y) -> mean(m(x) .- y).^2
+    #     Flux.train!((m,x,y) -> (m(x) - y)^2, v[k], [(x_batch, y_batch)], opt)
+    # end
+    Flux.train!((m,x,y) -> (m(x) - y)^2, v[k], data, opt)
+    end
+    end
         # train schritte geben uns vₖ
         println("update value:")
         update_value(game, V, E, [x -> v[i](x)[1] for i in eachindex(v)], ε, h)
