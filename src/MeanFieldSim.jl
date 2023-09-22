@@ -11,7 +11,7 @@ export
     PostTrainingStage
     # PreNetStage,
     # PostNetStage
-export ComposedHook, TimeCostPerTraining, PrintNet
+export ComposedHook, ResultsHook, TimeCostPerTraining, PrintNet
 export approximate
 
 using Statistics
@@ -94,7 +94,7 @@ end
 #     return x
 # end
 
-function approximate(game::MeanFieldGame; n=20, N=50000, p=2, iterations=10, epochs=1, hook=EmptyHook())
+function approximate(game::MeanFieldGame; n=20, N=50000, p=2, iterations=10, epochs=1, test_percentage=1/6, hook=EmptyHook())
     # TODO: saving of model
     # FIXME: Summen k=0???
 
@@ -153,6 +153,7 @@ function approximate(game::MeanFieldGame; n=20, N=50000, p=2, iterations=10, epo
         # mehrere epochen, mache backpropagation auf batch aus N samples
         Threads.@threads for k in eachindex(v)
             hook(PreNetStage(), game, vars, q=q, k=k)
+            # TODO: test data set
             data = [(Float32.(vec(ε[1:k, i, :])), Float32(E[k, i] * ξ[i])) for i in eachindex(ξ)] # very inperformant
             # data_loader = DataLoader(data, batchsize=batch_size, shuffle=true)
             # println("q: $q, k: $k")
@@ -178,6 +179,7 @@ function approximate(game::MeanFieldGame; n=20, N=50000, p=2, iterations=10, epo
         update_η(game, V, η, h, ε)
         println("update stochastic discount function:")
         update_sdf(ξ, step_size, η)
+        println("update total average emissions:")
         total_average_emissions!(game, ψ, ε, v, h)
         # push!(results, [deepcopy(ξ), deepcopy(ψ)])
         hook(PostIterationStage(), game, vars)

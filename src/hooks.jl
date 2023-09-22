@@ -33,6 +33,10 @@ function (hook::ComposedHook)(stage::AbstractStage, game, vars; kwargs...)
     end
 end
 
+Base.@kwdef struct ResultsHook <: AbstractHook
+    results=[]
+end
+
 Base.@kwdef mutable struct TimeCostPerTraining <: AbstractHook
     t::UInt64 = time_ns()
     time_costs::Vector{UInt64} = []
@@ -63,3 +67,6 @@ struct EmptyHook <: AbstractHook
 end
 
 # (h::IntermediateResult)(::PreExperimentStage, game, vars) = push!(h.time_costs, time_ns() - h.t)
+# struct ValidationHook <: AbstractHook
+#     hooks::Vector{AbstractHook}
+# end
