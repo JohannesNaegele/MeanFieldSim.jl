@@ -9,7 +9,7 @@ function update_value(game, V, E, v, ε, h) # v is a vector of neuronal networks
         for k in axes(E, 1)
             wₖ = (k == 1) || (k == size(E)[1]) ? 1.0 / 2.0 : 1.0
             # println(v[k](ε[1:k, i, :]))
-            x += wₖ * game.C₂^2 * 1 / α(k * h, game.γ, h, ε[1:k, i, 2]) * E[k, i] * v[k](Float32.(vec(ε[1:k, i, :]))) # TODO: check dimension with NN
+            x += wₖ * game.C₂ * 1 / α(k * h, game.γ, h, ε[1:k, i, 2]) * E[k, i] * v[k](Float32.(vec(ε[1:k, i, :]))) # TODO: check dimension with NN
         end
         V[i] += h * x
     end
