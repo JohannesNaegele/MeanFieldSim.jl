@@ -20,10 +20,10 @@ game = MeanFieldGame(
 )
 
 # TODO: adapt push! aka setindex
-(h::ResultsHook)(::PostIterationStage, game, vars; kwargs...) = push!(h.results, (ξ=vars.ξ,))
+(h::ResultsHook)(::PostIterationStage, game, vars; kwargs...) = push!(h.results, (ξ=deepcopy(vars.ξ), ψ=deepcopy(vars.ψ)))
 # FIXME:
 hook = ComposedHook([TimeCostPerTraining(), PrintNet(), ResultsHook(), ValidationHook(20)])
-approximate(game; n=20, N=50000, p=2, iterations=1, hook)
+approximate(game; n=20, N=50000, p=2, iterations=4, hook)
 results = hook[3].results
 hook[4].training_error
 hook[4].test_error
@@ -33,8 +33,14 @@ for i in eachindex(results)[2:end]
 end
 p
 
-# Syntax, die ich gerne hätte
-for n in 1:20
-    game.dings = 1.0/n
-    approximate(game; n=20, N=50000, p=2, iterations=10, hook)
+p = density(results[1].ψ);
+for i in eachindex(results)[2:end]
+    density!(results[i].ψ)
 end
+p
+
+# # Syntax, die ich gerne hätte
+# for n in 1:20
+#     game.dings = 1.0/n
+#     approximate(game; n=20, N=50000, p=2, iterations=10, hook)
+# end
