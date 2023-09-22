@@ -19,19 +19,22 @@ game = MeanFieldGame(
     T=5.0
 )
 
-Base.@kwdef struct ResultsHook <: AbstractHook
-    results=[]
-end
-
 # TODO: adapt push! aka setindex
 (h::ResultsHook)(::PostIterationStage, game, vars; kwargs...) = push!(h.results, (ξ=vars.ξ,))
-
-hook = ComposedHook([TimeCostPerTraining(), PrintNet(), ResultsHook()])
-# hook[1]
+# FIXME:
+hook = ComposedHook([TimeCostPerTraining(), PrintNet(), ResultsHook(), ValidationHook(20)])
+approximate(game; n=20, N=50000, p=2, iterations=1, hook)
 results = hook[3].results
-res = approximate(game; n=20, N=50000, p=2, iterations=10, hook)
+hook[4].training_error
+hook[4].test_error
 p = density(results[1].ξ);
 for i in eachindex(results)[2:end]
-    results[i].ξ
+    density!(results[i].ξ)
 end
 p
+
+# Syntax, die ich gerne hätte
+for n in 1:20
+    game.dings = 1.0/n
+    approximate(game; n=20, N=50000, p=2, iterations=10, hook)
+end

@@ -11,7 +11,7 @@ export
     PostTrainingStage
     # PreNetStage,
     # PostNetStage
-export ComposedHook, ResultsHook, TimeCostPerTraining, PrintNet
+export ComposedHook, ResultsHook, ValidationHook, TimeCostPerTraining, PrintNet
 export approximate
 
 using Statistics
@@ -49,7 +49,10 @@ include("ModelFunctions.jl")
 
 function approximate(game::MeanFieldGame; n=20, N=50000, p=2, iterations=10, epochs=1, test_percentage=1/6, hook=EmptyHook())
     # TODO: saving of model
-    # FIXME: Summen k=0???
+    # FIXME: Starten Summen richtig? (k=0?)
+
+    # FIXME: ugly programming
+    # hook = vcat(hook.hooks, )
 
     ε = randn(n, N, 2)
     E = Matrix{Float64}(undef, n, N)
@@ -97,7 +100,7 @@ function approximate(game::MeanFieldGame; n=20, N=50000, p=2, iterations=10, epo
 
     hook(PreExperimentStage(), game, vars)
 
-    # ...
+    n_test = min(Int(round(N * (1 - test_percentage) / 32)) * 32, N)
 
     for q in 1:iterations
         step_size = 2 / (p + q)
@@ -107,10 +110,11 @@ function approximate(game::MeanFieldGame; n=20, N=50000, p=2, iterations=10, epo
         Threads.@threads for k in eachindex(v)
             hook(PreNetStage(), game, vars, q=q, k=k)
             # TODO: test data set
-            data = [(Float32.(vec(ε[1:k, i, :])), Float32(E[k, i] * ξ[i])) for i in eachindex(ξ)] # very inperformant
+            data = [(Float32.(vec(ε[1:k, i, :])), Float32(E[k, i] * ξ[i])) for i in 1:n_test] # very inperformant
             # data_loader = DataLoader(data, batchsize=batch_size, shuffle=true)
             # println("q: $q, k: $k")
             for _ in 1:epochs
+                hook(PreEpisodeStage(), game, vars, q=q, k=k)
                 opt = Flux.setup(optimizer, v[k])
                 # for (x_batch, y_batch) in data_loader
                 #     # Flux.Losses.mse
@@ -119,20 +123,22 @@ function approximate(game::MeanFieldGame; n=20, N=50000, p=2, iterations=10, epo
                 #     # (m,x,y) -> mean(m(x) .- y).^2
                 #     Flux.train!((m,x,y) -> (m(x) - y)^2, v[k], [(x_batch, y_batch)], opt)
                 # end
-                Flux.train!((m, x, y) -> (m(x) - y)^2, v[k], data, opt)
+                loss_function(m, x, y) = (m(x) - y)^2
+                Flux.train!(loss_function, v[k], data, opt)
+                hook(PostEpisodeStage(), game, vars, q=q, k=k)
             end
-            hook(PostNetStage(), game, vars)
+            hook(PostNetStage(), game, vars, k=k, test_index=n_test)
         end
         hook(PostTrainingStage(), game, vars)
 
         # training gibt uns vₖ
-        println("update value:")
+        println("update value...")
         update_value(game, V, E, [x -> v[i](x)[1] for i in eachindex(v)], ε, h)
-        println("update η:")
+        println("update η...")
         update_η(game, V, η, h, ε)
-        println("update stochastic discount function:")
+        println("update stochastic discount function...")
         update_sdf(ξ, step_size, η)
-        println("update total average emissions:")
+        println("update total average emissions...")
         total_average_emissions!(game, ψ, ε, v, h)
         # push!(results, [deepcopy(ξ), deepcopy(ψ)])
         hook(PostIterationStage(), game, vars)
