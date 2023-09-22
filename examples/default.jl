@@ -19,20 +19,19 @@ game = MeanFieldGame(
     T=5.0
 )
 
-# ξ = approximate(game; n=20, N=50000, p=2, iterations=10)
-ξ = approximate(game; n=2, N=50000, p=2, iterations=1)
-density(ξ)
+Base.@kwdef struct ResultsHook <: AbstractHook
+    results=[]
+end
 
-c = Chain(
-    Dense(10 => 5, leakyrelu),   # activation function inside layer
-    Dense(5 => 1),
-    Dropout(0.5),
-    leakyrelu,
-    only
-)
-# data = [(c(hcat(rand(10), rand(10))), hcat([1], [1]))]
-data = [([x*i for i in 1:10], x^2) for x in 1:10]
+# TODO: adapt push! aka setindex
+(h::ResultsHook)(::PostIterationStage, game, vars; kwargs...) = push!(h.results, (ξ=vars.ξ,))
 
-Flux.train!((m,x,y) -> (m(x) - y)^2, c, data, opt)
-
-opt = Flux.setup(Adam(), c)
+hook = ComposedHook([TimeCostPerTraining(), PrintNet(), ResultsHook()])
+# hook[1]
+results = hook[3].results
+res = approximate(game; n=20, N=50000, p=2, iterations=10, hook)
+p = density(results[1].ξ);
+for i in eachindex(results)[2:end]
+    results[i].ξ
+end
+p

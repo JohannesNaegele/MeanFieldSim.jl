@@ -1,6 +1,17 @@
 module MeanFieldSim
 
-export MeanFieldGame
+export MeanFieldGame, SimulatedVariables
+export AbstractHook, AbstractStage
+export
+    PreExperimentStage,
+    PostExperimentStage,
+    PreIterationStage,
+    PostIterationStage,
+    PreTrainingStage,
+    PostTrainingStage
+    # PreNetStage,
+    # PostNetStage
+export ComposedHook, TimeCostPerTraining, PrintNet
 export approximate
 
 using Statistics
@@ -19,6 +30,20 @@ Base.@kwdef struct MeanFieldGame{S}
     σ::S # volatility of common risk
     V₀::S # average initial firm value
 end
+
+Base.@kwdef struct SimulatedVariables # TODO: parametrise
+    ε
+    E
+    ξ
+    ψ
+    V
+    η
+    # optimizer
+    v
+    # batch_size
+end
+
+include("hooks.jl")
 
 function α(t, γ, h, ε)
     return exp(γ * sqrt(h) * sum(ε) - γ^2 * t / 2)
@@ -69,9 +94,10 @@ end
 #     return x
 # end
 
-function approximate(game::MeanFieldGame; n=20, N=50000, p=2, iterations=10, epochs=1, intermediate=nothing)
-    # TODO: logging, hooks
+function approximate(game::MeanFieldGame; n=20, N=50000, p=2, iterations=10, epochs=1, hook=EmptyHook())
+    # TODO: saving of model
     # FIXME: Summen k=0???
+
     ε = randn(n, N, 2)
     E = Matrix{Float64}(undef, n, N)
 
@@ -102,17 +128,34 @@ function approximate(game::MeanFieldGame; n=20, N=50000, p=2, iterations=10, epo
         for k in 1:n
     ]
     batch_size = 32
-    loss_fn = (m, x, y) -> mean((m(x) .- y) .^ 2)
 
-    results = []
+    # loss_fn = (m, x, y) -> mean((m(x) .- y) .^ 2)
+    # results = []
+
+    vars = SimulatedVariables(
+        ε,
+        E,
+        ξ,
+        ψ,
+        V,
+        η,
+        v
+    )
+
+    hook(PreExperimentStage(), game, vars)
+
+    # ...
 
     for q in 1:iterations
         step_size = 2 / (p + q)
+        hook(PreIterationStage(), game, vars)
+        hook(PreTrainingStage(), game, vars)
         # mehrere epochen, mache backpropagation auf batch aus N samples
         Threads.@threads for k in eachindex(v)
+            hook(PreNetStage(), game, vars, q=q, k=k)
             data = [(Float32.(vec(ε[1:k, i, :])), Float32(E[k, i] * ξ[i])) for i in eachindex(ξ)] # very inperformant
-            data_loader = DataLoader(data, batchsize=batch_size, shuffle=true)
-            println("q: $q, k: $k")
+            # data_loader = DataLoader(data, batchsize=batch_size, shuffle=true)
+            # println("q: $q, k: $k")
             for _ in 1:epochs
                 opt = Flux.setup(optimizer, v[k])
                 # for (x_batch, y_batch) in data_loader
@@ -124,8 +167,11 @@ function approximate(game::MeanFieldGame; n=20, N=50000, p=2, iterations=10, epo
                 # end
                 Flux.train!((m, x, y) -> (m(x) - y)^2, v[k], data, opt)
             end
+            hook(PostNetStage(), game, vars)
         end
-        # train schritte geben uns vₖ
+        hook(PostTrainingStage(), game, vars)
+
+        # training gibt uns vₖ
         println("update value:")
         update_value(game, V, E, [x -> v[i](x)[1] for i in eachindex(v)], ε, h)
         println("update η:")
@@ -133,9 +179,11 @@ function approximate(game::MeanFieldGame; n=20, N=50000, p=2, iterations=10, epo
         println("update stochastic discount function:")
         update_sdf(ξ, step_size, η)
         total_average_emissions!(game, ψ, ε, v, h)
-        push!(results, [deepcopy(ξ), deepcopy(ψ)])
+        # push!(results, [deepcopy(ξ), deepcopy(ψ)])
+        hook(PostIterationStage(), game, vars)
     end
-    return results
+    # return results
+    hook(PostExperimentStage(), game, vars)
 end
 
 end # module MeanFieldGame
