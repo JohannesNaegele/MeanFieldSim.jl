@@ -18,7 +18,7 @@ using Statistics
 using Flux
 import Flux.Data: DataLoader
 
-Base.@kwdef struct MeanFieldGame{S}
+Base.@kwdef struct MeanFieldGame{S<:Any}
     C::S # emission efficiacy
     C₂::S # emission efficiacy ???
     γ::S # risk aversion parameter
