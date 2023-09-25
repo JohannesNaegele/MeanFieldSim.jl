@@ -2,7 +2,6 @@ cd("./MeanFieldSim")
 using Revise
 import Pkg; Pkg.activate("./")
 using MeanFieldSim
-# using Plots
 using StatsPlots
 using Flux
 
@@ -25,15 +24,15 @@ game = MeanFieldGame(
 hook = ComposedHook([TimeCostPerTraining(), PrintNet(), ResultsHook(), ValidationHook(20)])
 approximate(game; n=20, N=50000, p=2, iterations=4, hook)
 results = hook[3].results
-hook[4].training_error
-hook[4].test_error
+# hook[4].training_error
+# hook[4].test_error
 p = density(results[1].ξ);
 for i in eachindex(results)[2:end]
     density!(results[i].ξ)
 end
 p
 
-p = density(results[1].ψ);
+p = density(results[1].ψ, xlims=[0,5]);
 for i in eachindex(results)[2:end]
     density!(results[i].ψ)
 end
