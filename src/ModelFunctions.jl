@@ -37,3 +37,13 @@ function total_average_emissions!(game, ψ, ε, v, h)
         ψ[i] *= h
     end
 end
+
+function expected_emissions!(game, ψ_repr, ε, E, ξ, h)
+    for k in eachindex(ψ_repr)
+        x = 0.0
+        for i in eachindex(ξ)
+            x += ξ[i] * 1 / α(k * h, game.γ, h, ε[1:k, i, 2]) * E[k, i]
+        end
+        ψ_repr[k] = x * game.C / length(ξ)
+    end
+end

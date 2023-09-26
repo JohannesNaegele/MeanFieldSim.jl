@@ -36,6 +36,7 @@ Base.@kwdef struct SimulatedVariables # TODO: parametrise
     E
     ξ
     ψ
+    ψ_repr
     V
     η
     # optimizer
@@ -67,6 +68,7 @@ function approximate(game::MeanFieldGame; n=20, N=50000, p=2, iterations=10, epo
 
     ξ = ones(N) # stochastic discount factor
     ψ = zeros(N)
+    ψ_repr = Vector{Float64}(undef, n)
     V = zeros(N)
     η = zeros(N)
     # https://stats.stackexchange.com/a/136542/297734
@@ -93,6 +95,7 @@ function approximate(game::MeanFieldGame; n=20, N=50000, p=2, iterations=10, epo
         E,
         ξ,
         ψ,
+        ψ_repr,
         V,
         η,
         v
@@ -140,7 +143,8 @@ function approximate(game::MeanFieldGame; n=20, N=50000, p=2, iterations=10, epo
         update_sdf(ξ, step_size, η)
         println("update total average emissions...")
         total_average_emissions!(game, ψ, ε, v, h)
-        # push!(results, [deepcopy(ξ), deepcopy(ψ)])
+        println("update expected representative emissions...")
+        expected_emissions!(game, ψ_repr, ε, E, ξ, h)
         hook(PostIterationStage(), game, vars)
     end
     # return results
