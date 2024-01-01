@@ -145,6 +145,7 @@ function approximate(game::MeanFieldGame; n=20, N=50000, p=2, iterations=10, epo
         total_average_emissions!(game, ψ, ε, v, h)
         println("update expected representative emissions...")
         expected_emissions!(game, ψ_repr, ε, E, ξ, h)
+        
         hook(PostIterationStage(), game, vars)
     end
     # return results
