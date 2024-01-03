@@ -85,7 +85,7 @@ function approximate(game::MeanFieldGame; n=20, N=50000, p=2, iterations=10, epo
         )
         for k in 1:n
     ]
-    batch_size = 32
+    batch_size = 64
 
     # loss_fn = (m, x, y) -> mean((m(x) .- y) .^ 2)
     # results = []
@@ -110,28 +110,46 @@ function approximate(game::MeanFieldGame; n=20, N=50000, p=2, iterations=10, epo
         hook(PreIterationStage(), game, vars)
         hook(PreTrainingStage(), game, vars)
         # mehrere epochen, mache backpropagation auf batch aus N samples
-        Threads.@threads for k in eachindex(v)
+        # v |> gpu
+        for k in eachindex(v)
+            v_k = v[k] |> gpu
             hook(PreNetStage(), game, vars, q=q, k=k)
-            # TODO: test data set
-            data = [(Float32.(vec(ε[1:k, i, :])), Float32(E[k, i] * ξ[i])) for i in 1:n_test] # very inperformant
-            # data_loader = DataLoader(data, batchsize=batch_size, shuffle=true)
-            # println("q: $q, k: $k")
+            # data = [(Float32.(vec(ε[1:k, i, :])), Float32(E[k, i] * ξ[i])) for i in 1:n_test] # very inperformant
+            # println(typeof(data))
+            loss_function(m, x, y) = (m(x) - y)^2
+            function loss_batch(model, x_batch, y_batch)
+                predictions = gpu(model.(x_batch))  # Apply model to each element in x_batch
+                errors = predictions .- y_batch  # Calculate errors for each prediction
+                return sum(errors .^ 2)  # Return sum of squared errors
+            end
+            data_loader = DataLoader(([Float32.(vec(ε[1:k, i, :])) for i in 1:n_test], [Float32(E[k, i] * ξ[i]) for i in 1:n_test]), batchsize=batch_size, shuffle=true)
+            data_loader = DataLoader(
+                (
+                    [gpu(Float32.(vec(ε[1:k, i, :]))) for i in 1:n_test],  # Convert to CuArray
+                    [gpu(Float32.(E[k, i] * ξ[i])) for i in 1:n_test]       # Convert to CuArray
+                ),
+                batchsize=batch_size,
+                shuffle=true
+            )
             for _ in 1:epochs
                 hook(PreEpisodeStage(), game, vars, q=q, k=k)
-                opt = Flux.setup(optimizer, v[k])
-                # for (x_batch, y_batch) in data_loader
-                #     # Flux.Losses.mse
-                #     # loss(ŷ, y, agg=x->mean(w .* x))
-                #     # TODO: batch size
-                #     # (m,x,y) -> mean(m(x) .- y).^2
-                #     Flux.train!((m,x,y) -> (m(x) - y)^2, v[k], [(x_batch, y_batch)], opt)
-                # end
-                loss_function(m, x, y) = (m(x) - y)^2
-                Flux.train!(loss_function, v[k], data, opt)
+                opt = Flux.setup(optimizer, v_k)
+                for (x_cpu, y_cpu) in data_loader
+                    x = gpu(x_cpu)
+                    y = gpu(y_cpu)
+                    # println(typeof.([x, y, v_k]))
+                    # println(typeof.([x_cpu, y_cpu, v_k]))
+                    # loss_batch(v_k, x, y)
+                    grads = gradient(m -> loss_batch(m, x, y), v_k)
+                    Flux.update!(opt, v_k, grads[1])
+                    # Flux.train!(loss_batch, v[k], [(x, y)], opt)
+                end
+                # Flux.train!(loss_function, v[k], data, opt)
                 hook(PostEpisodeStage(), game, vars, q=q, k=k)
             end
             hook(PostNetStage(), game, vars, k=k, test_index=n_test)
         end
+        v |> cpu
         hook(PostTrainingStage(), game, vars)
 
         # training gibt uns vₖ

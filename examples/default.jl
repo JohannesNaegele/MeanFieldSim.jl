@@ -1,8 +1,8 @@
-using Revise
-import Pkg; Pkg.activate("./")
 using MeanFieldSim
 using StatsPlots
+using CUDA
 using Flux
+CUDA.functional()
 
 game = MeanFieldGame(
     γ_star=0.5,
@@ -24,8 +24,7 @@ game = MeanFieldGame(
 )
 # FIXME:
 hook = ComposedHook([TimeCostPerTraining(), PrintNet(), ResultsHook(), ValidationHook(20)])
-approximate(game; n=20, N=50000, p=2, iterations=4, hook)
-results = hook[3].results
+@profview approximate(game; n=2, N=50000, p=2, iterations=1, hook)
 # hook[4].training_error
 # hook[4].test_error
 
