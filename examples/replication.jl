@@ -26,7 +26,7 @@ game = MeanFieldGame(
 )
 
 # Start simulation
-approximate(game; n=20, N=50000, p=2, iterations=4, hook=hook)
+approximate(game; n=20, N=50000, p=2, iterations=10, hook=hook)
 # Save results in variable
 first_experiment = hook[3].results
 
@@ -59,7 +59,7 @@ hook = ResultsHook()
         ρ=0.5,
         T=5.0
     )
-    approximate(game; n=20, N=50000, p=2, iterations=4, hook=ComposedHook([PrintNet(), hook]))
+    approximate(game; n=20, N=50000, p=2, iterations=10, hook=ComposedHook([PrintNet(), hook]))
 end
 push!(second_experiment, hook.results)
 
@@ -78,7 +78,7 @@ hook = ResultsHook()
         ρ=0.0,
         T=5.0
     )
-    approximate(game; n=20, N=50000, p=2, iterations=4, hook=ComposedHook([PrintNet(), hook]))
+    approximate(game; n=20, N=50000, p=2, iterations=10, hook=ComposedHook([PrintNet(), hook]))
 end
 push!(second_experiment, hook.results)
 
@@ -96,7 +96,7 @@ hook = ResultsHook()
         ρ=ρ,
         T=5.0
     )
-    approximate(game; n=20, N=50000, p=2, iterations=4, hook=ComposedHook([PrintNet(), hook]))
+    approximate(game; n=20, N=50000, p=2, iterations=10, hook=ComposedHook([PrintNet(), hook]))
 end
 push!(second_experiment, hook.results)
 
